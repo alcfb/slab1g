@@ -1,0 +1,19 @@
+Strongly absorbing fuel cell  |  L = 1.9 cm, 2 zones
+  zone 1 fuel       t=0.4  St=1.35  Ss=0.3  Sc=0.6  Sf=0.45  nu=2.45  (0.54 mfp)
+  zone 2 moderator  t=1.5  St=1.004  Ss=1  Sc=0.004  Sf=0  nu=2.43  (1.51 mfp)
+
+Reference: S32 (even-par)
+
+method                  k   dk [pcm]  max|dphi|/phi   rms dphi     zone 1     zone 2
+------------------------------------------------------------------------------------
+diffusion        1.035388       -9.1      5.987e-03  3.895e-03    1.00966    0.99743
+SP3              1.035463       -1.8      1.157e-03  8.019e-04    1.01381    0.99632
+S4 (even-par)    1.035463       -1.8      1.157e-03  8.019e-04    1.01381    0.99632
+S8 (even-par)    1.035480       -0.2      3.469e-04  1.503e-04    1.01474    0.99607
+S16 (even-par)   1.035482       -0.0      1.178e-04  3.954e-05    1.01485    0.99604
+S32 (even-par)   1.035482        0.0      0.000e+00  0.000e+00    1.01487    0.99603
+
+Fluxes normalised to slab-average scalar flux = 1.
+
+figure -> docs/img/strong_absorber.png
+csv    -> docs/strong_absorber.csv

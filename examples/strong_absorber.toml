@@ -1,0 +1,23 @@
+# Thin, strongly absorbing fuel next to a scattering moderator: steep flux
+# gradients over a fraction of a mean free path, where diffusion is weakest.
+title = "Strongly absorbing fuel cell"
+
+[mesh]
+elements_per_mfp = 10
+min_elements_per_zone = 20
+degree = 2
+
+[[zone]]
+name = "fuel"
+thickness = 0.4
+sigma_s = 0.30
+sigma_c = 0.60
+sigma_f = 0.45
+nu = 2.45
+
+[[zone]]
+name = "moderator"
+thickness = 1.5
+sigma_s = 1.00
+sigma_c = 0.004
+sigma_f = 0.0

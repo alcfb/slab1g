@@ -1,0 +1,19 @@
+Thick two-zone slab  |  L = 30 cm, 2 zones
+  zone 1 core       t=20  St=0.91  Ss=0.8  Sc=0.06  Sf=0.05  nu=2.43  (18.20 mfp)
+  zone 2 reflector  t=10  St=1.505  Ss=1.5  Sc=0.005  Sf=0  nu=2.43  (15.05 mfp)
+
+Reference: S32 (even-par)
+
+method                  k   dk [pcm]  max|dphi|/phi   rms dphi     zone 1     zone 2
+------------------------------------------------------------------------------------
+diffusion        1.095113       -1.6      2.201e-03  1.044e-03    1.26105    0.47789
+SP3              1.095130       -0.0      2.885e-04  4.124e-05    1.26142    0.47717
+S4 (even-par)    1.095130       -0.0      2.885e-04  4.124e-05    1.26142    0.47717
+S8 (even-par)    1.095130       -0.0      1.012e-04  9.868e-06    1.26142    0.47716
+S16 (even-par)   1.095130       -0.0      2.409e-05  2.143e-06    1.26142    0.47716
+S32 (even-par)   1.095130        0.0      0.000e+00  0.000e+00    1.26142    0.47716
+
+Fluxes normalised to slab-average scalar flux = 1.
+
+figure -> docs/img/thick_two_zone.png
+csv    -> docs/thick_two_zone.csv

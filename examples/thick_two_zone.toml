@@ -1,0 +1,22 @@
+# Optically thick zones: diffusion should be accurate except near the interface.
+title = "Thick two-zone slab"
+
+[mesh]
+elements_per_mfp = 4
+min_elements_per_zone = 16
+degree = 2
+
+[[zone]]
+name = "core"
+thickness = 20.0
+sigma_s = 0.80
+sigma_c = 0.06
+sigma_f = 0.05
+nu = 2.43
+
+[[zone]]
+name = "reflector"
+thickness = 10.0
+sigma_s = 1.50
+sigma_c = 0.005
+sigma_f = 0.0

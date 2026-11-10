@@ -1,0 +1,19 @@
+Fuel / moderator lattice cell  |  L = 1.5 cm, 2 zones
+  zone 1 fuel       t=0.5  St=0.59  Ss=0.37  Sc=0.12  Sf=0.1  nu=2.5  (0.29 mfp)
+  zone 2 moderator  t=1  St=1.21  Ss=1.2  Sc=0.01  Sf=0  nu=2.43  (1.21 mfp)
+
+Reference: S32 (even-par)
+
+method                  k   dk [pcm]  max|dphi|/phi   rms dphi     zone 1     zone 2
+------------------------------------------------------------------------------------
+diffusion        1.042953     -111.3      1.065e-02  7.469e-03    1.00997    0.99502
+SP3              1.043711      -38.7      3.785e-03  2.584e-03    1.01592    0.99204
+S4 (even-par)    1.043711      -38.7      3.785e-03  2.584e-03    1.01592    0.99204
+S8 (even-par)    1.044039       -7.3      1.161e-03  5.532e-04    1.01851    0.99074
+S16 (even-par)   1.044105       -1.0      3.562e-04  1.264e-04    1.01904    0.99048
+S32 (even-par)   1.044115        0.0      0.000e+00  0.000e+00    1.01912    0.99044
+
+Fluxes normalised to slab-average scalar flux = 1.
+
+figure -> docs/img/fuel_moderator.png
+csv    -> docs/fuel_moderator.csv

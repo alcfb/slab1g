@@ -1,0 +1,23 @@
+# Half of a symmetric fuel/moderator lattice cell (reflected on both sides).
+# Zones are listed from x = 0 to x = L. Units: cm and 1/cm.
+title = "Fuel / moderator lattice cell"
+
+[mesh]
+elements_per_mfp = 8      # FE elements per mean free path (per zone)
+min_elements_per_zone = 16
+degree = 2                # quadratic Lagrange elements
+
+[[zone]]
+name = "fuel"
+thickness = 0.5
+sigma_s = 0.37
+sigma_c = 0.12
+sigma_f = 0.10
+nu = 2.5
+
+[[zone]]
+name = "moderator"
+thickness = 1.0
+sigma_s = 1.20
+sigma_c = 0.01
+sigma_f = 0.0
