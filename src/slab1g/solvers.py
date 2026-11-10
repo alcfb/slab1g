@@ -6,30 +6,49 @@ All three models are written as a generalized eigenproblem
 
 and solved for the fundamental mode (largest k) with ARPACK on A^{-1} F.
 
-Notation per zone: St = total, Ss = scattering, Sa = St - Ss = absorption,
-nSf = nu * fission.
+Notation per zone: St = total, Ss_l = l-th Legendre moment of scattering
+(Ss_0 = Ss), s_n = St - Ss_n, Sa = s_0 = absorption, nSf = nu * fission.
+Scattering may be anisotropic, Ss(mu0) = sum_l (2l+1)/2 Ss_l P_l(mu0);
+fission is isotropic.
 
 Diffusion (P1)
 --------------
-    -(D phi')' + Sa phi = (1/k) nSf phi,          D = 1/(3 St)
+    -(D phi')' + Sa phi = (1/k) nSf phi,          D = 1/(3 s_1)
 
-SP3 (Gelbard; Brantley & Larsen form, isotropic scattering)
------------------------------------------------------------
+(transport-corrected diffusion coefficient; moments above l = 1 do not enter).
+
+SP3 (Gelbard; Brantley & Larsen form)
+-------------------------------------
 Unknowns Phi0 = phi0 + 2 phi2 and phi2; scalar flux phi = Phi0 - 2 phi2.
 
-    -(1/(3St) Phi0')' + Sa (Phi0 - 2phi2)                   = (1/k) nSf (Phi0 - 2phi2)
-    -(9/(35St) phi2')' + St phi2 - 2/5 Sa (Phi0 - 2phi2)    = -2/5 (1/k) nSf (Phi0 - 2phi2)
+    -(1/(3s_1) Phi0')' + Sa (Phi0 - 2phi2)                  = (1/k) nSf (Phi0 - 2phi2)
+    -(9/(35s_3) phi2')' + s_2 phi2 - 2/5 Sa (Phi0 - 2phi2)  = -2/5 (1/k) nSf (Phi0 - 2phi2)
 
-In 1D planar geometry SP3 is identical to P3, so this is a genuine angular
-refinement of diffusion. Reflective BCs (phi1 = phi3 = 0) and P3 interface
-conditions are both natural in this weak form.
+In 1D planar geometry SP3 is identical to P3 (scattering moments up to l = 3
+are used), so this is a genuine angular refinement of diffusion. Reflective
+BCs (phi1 = phi3 = 0) and P3 interface conditions are both natural in this
+weak form. With isotropic scattering s_1 = s_2 = s_3 = St.
 
 Transport (even-parity S_N)
 ---------------------------
-With psi+(x, mu) = [psi(x, mu) + psi(x, -mu)] / 2 for Gauss-Legendre directions
-mu_m > 0 (full-range weights w_m, sum over all = 2):
+Gauss-Legendre directions mu_m > 0, full-range weights w_m (sum over all = 2),
+psi+- = [psi(mu) +- psi(-mu)] / 2. Even moments of the scattering source
+involve only psi+, odd moments only psi-:
 
-    -(mu_m^2/St psi_m')' + St psi_m = 1/2 (Ss + nSf/k) phi,  phi = sum_m 2 w_m psi_m
+    odd :  mu psi+' + T psi-   = 0,        T  = St I - S_odd
+    even:  mu psi-' + St psi+  = S_even psi+ + (nSf/2k) phi
+
+    S_par[m, n] = sum_(l of that parity) (2l+1) Ss_l P_l(mu_m) P_l(mu_n) w_n
+
+Eliminating psi- = -T^-1 mu psi+' gives N/2 coupled second-order equations
+
+    -(mu T^-1 mu psi+')' + (St I - S_even) psi+ = (nSf/2k) phi,   phi = sum_m 2 w_m psi+_m
+
+which are made symmetric by multiplying the rows by W = diag(w):
+stiffness (W mu)(W T)^-1(W mu), removal W(St I - S_even), fission w w^T nSf.
+With isotropic scattering T = St I and the stiffness is diagonal, mu^2/St.
+Moments with l > N - 1 cannot be resolved by an N-point quadrature and are
+dropped (with a warning).
 
 Reflection psi(mu) = psi(-mu) means zero odd parity, i.e. a natural BC. As N
 grows this converges to the exact transport solution; N = 16-32 is the
@@ -38,6 +57,7 @@ reference in the comparison. An independent diamond-difference S_N code in
 """
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -89,7 +109,7 @@ def _finish(method, disc: Discretization, k, phi_dofs, info=None) -> Result:
 # --------------------------------------------------------------------------- #
 def diffusion(problem: SlabProblem, disc: Discretization | None = None) -> Result:
     d = disc or build(problem)
-    A = d.stiffness(lambda z: 1.0 / (3.0 * z.sigma_t)) + d.mass(lambda z: z.sigma_a)
+    A = d.stiffness(lambda z: 1.0 / (3.0 * z.sigma_n(1))) + d.mass(lambda z: z.sigma_a)
     F = d.mass(lambda z: z.nu_sigma_f)
     k, u = solve_eigen(A, F)
     return _finish("diffusion", d, k, u)
@@ -97,13 +117,13 @@ def diffusion(problem: SlabProblem, disc: Discretization | None = None) -> Resul
 
 def sp3(problem: SlabProblem, disc: Discretization | None = None) -> Result:
     d = disc or build(problem)
-    K0 = d.stiffness(lambda z: 1.0 / (3.0 * z.sigma_t))
-    K2 = d.stiffness(lambda z: 9.0 / (35.0 * z.sigma_t))
+    K0 = d.stiffness(lambda z: 1.0 / (3.0 * z.sigma_n(1)))
+    K2 = d.stiffness(lambda z: 9.0 / (35.0 * z.sigma_n(3)))
     Ma = d.mass(lambda z: z.sigma_a)
-    Mt = d.mass(lambda z: z.sigma_t)
+    M2 = d.mass(lambda z: z.sigma_n(2))
     Mf = d.mass(lambda z: z.nu_sigma_f)
     A = sp.bmat([[K0 + Ma, -2.0 * Ma],
-                 [-0.4 * Ma, K2 + Mt + 0.8 * Ma]], format="csr")
+                 [-0.4 * Ma, K2 + M2 + 0.8 * Ma]], format="csr")
     F = sp.bmat([[Mf, -2.0 * Mf],
                  [-0.4 * Mf, 0.8 * Mf]], format="csr")
     k, u = solve_eigen(A, F)
@@ -122,20 +142,43 @@ def gauss_legendre_half(N: int):
     return mu[pos], w[pos]
 
 
+def sn_angular_blocks(zone, mu, w):
+    """Symmetric angular matrices of one zone for the even-parity S_N system.
+
+    Returns (C, R): stiffness-coefficient matrix (W mu)(W T)^-1(W mu) and removal
+    matrix W (St I - S_even), both (N/2 x N/2). Fission is w w^T nSf.
+    """
+    N = 2 * len(mu)
+    L = min(zone.scattering_order, N - 1)
+    W = np.diag(w)
+    Todd = zone.sigma_t * W
+    R = zone.sigma_t * W
+    for l in range(L + 1):
+        p = w * np.polynomial.legendre.Legendre.basis(l)(mu)       # w_m P_l(mu_m)
+        term = (2 * l + 1) * zone.sigma_sl(l) * np.outer(p, p)
+        if l % 2:
+            Todd = Todd - term
+        else:
+            R = R - term
+    Wmu = np.diag(w * mu)
+    C = Wmu @ np.linalg.solve(Todd, Wmu)
+    return 0.5 * (C + C.T), R
+
+
 def sn_even_parity(problem: SlabProblem, N: int = 16, disc: Discretization | None = None) -> Result:
     d = disc or build(problem)
     mu, w = gauss_legendre_half(N)
-    Kt = d.stiffness(lambda z: 1.0 / z.sigma_t)
-    Mt = d.mass(lambda z: z.sigma_t)
-    Ms = d.mass(lambda z: z.sigma_s)
-    Mf = d.mass(lambda z: z.nu_sigma_f)
-    # Rows are multiplied by w_m, which makes both A and F symmetric:
-    #   A_mn = w_m (mu_m^2 Kt + Mt) delta_mn - w_m w_n Ms
-    #   F_mn = w_m w_n Mf
-    ww = np.outer(w, w)
-    A = sp.bmat([[(w[m] * (mu[m] ** 2 * Kt + Mt) if m == n_ else None) for n_ in range(len(mu))]
-                 for m in range(len(mu))], format="csr") - sp.kron(ww, Ms, format="csr")
-    F = sp.kron(ww, Mf, format="csr")
+    lost = [z.name or str(i) for i, z in enumerate(problem.zones, 1) if z.scattering_order > N - 1]
+    if lost:
+        warnings.warn(f"S{N}: scattering moments above P{N - 1} dropped in zone(s) {', '.join(lost)}",
+                      stacklevel=2)
+    # A = sum_z kron(C_z, K_z) + kron(R_z, M_z);   F = sum_z kron(w w^T, nSf_z M_z)
+    A = None
+    for z, Kz, Mz in zip(problem.zones, d.K, d.M):
+        C, R = sn_angular_blocks(z, mu, w)
+        blk = sp.kron(C, Kz, format="csr") + sp.kron(R, Mz, format="csr")
+        A = blk if A is None else A + blk
+    F = sp.kron(np.outer(w, w), d.mass(lambda z: z.nu_sigma_f), format="csr")
     k, u = solve_eigen(A, F)
     n = d.ndofs
     psi = u.reshape(len(mu), n)

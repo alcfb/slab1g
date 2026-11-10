@@ -104,6 +104,9 @@ def main(argv=None):
     for i, z in enumerate(problem.zones, 1):
         print(f"  zone {i} {z.name:<10s} t={z.thickness:g}  St={z.sigma_t:.4g}  Ss={z.sigma_s:.4g}  "
               f"Sc={z.sigma_c:.4g}  Sf={z.sigma_f:.4g}  nu={z.nu:g}  ({z.thickness * z.sigma_t:.2f} mfp)")
+        if z.sigma_s_l:
+            mom = ", ".join(f"Ss{l}={v:.4g}" for l, v in enumerate(z.sigma_s_l, 1))
+            print(f"         anisotropic P{z.scattering_order}: {mom}  (mean cosine {z.sigma_s_l[0] / z.sigma_s:.3f})")
     print()
     results = solve_all(problem, sorted(a.sn))
     print(compare(results))

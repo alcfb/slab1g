@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import tomllib
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import numpy as np
 
 
 @dataclass(frozen=True)
@@ -13,11 +16,14 @@ class Zone:
     Cross sections are macroscopic, in 1/cm (any consistent length unit works).
 
     thickness : zone width
-    sigma_s   : isotropic scattering cross section
+    sigma_s   : scattering cross section (P0 Legendre moment, Σs0)
     sigma_c   : capture cross section
     sigma_f   : fission cross section
     nu        : neutrons per fission
     name      : label used in output
+    sigma_s_l : higher Legendre moments of the scattering kernel [Σs1, Σs2, ...],
+                Σs(μ0) = Σ_l (2l+1)/2 Σs_l P_l(μ0). Σs1 = μ̄0 Σs0 (mean
+                scattering cosine). Empty (default) means isotropic scattering.
     """
 
     thickness: float
@@ -26,8 +32,10 @@ class Zone:
     sigma_f: float = 0.0
     nu: float = 2.43
     name: str = ""
+    sigma_s_l: tuple[float, ...] = ()
 
     def __post_init__(self):
+        object.__setattr__(self, "sigma_s_l", tuple(float(v) for v in self.sigma_s_l))
         if self.thickness <= 0:
             raise ValueError(f"zone {self.name!r}: thickness must be > 0")
         for k in ("sigma_s", "sigma_c", "sigma_f", "nu"):
@@ -35,6 +43,36 @@ class Zone:
                 raise ValueError(f"zone {self.name!r}: {k} must be >= 0")
         if self.sigma_t <= 0:
             raise ValueError(f"zone {self.name!r}: total cross section must be > 0")
+        for l, v in enumerate(self.sigma_s_l, 1):
+            if abs(v) > self.sigma_s * (1 + 1e-12):
+                raise ValueError(f"zone {self.name!r}: |Σs{l}| = {abs(v):g} exceeds Σs0 = {self.sigma_s:g}")
+        if self.sigma_s_l:
+            mu0 = np.linspace(-1, 1, 2001)
+            kern = self.scattering_kernel(mu0)
+            if kern.min() < -1e-12 * self.sigma_s:
+                warnings.warn(f"zone {self.name!r}: truncated P{self.scattering_order} scattering kernel "
+                              f"is negative for some angles (min {kern.min():.3g}); results stay "
+                              f"well-defined but may be less physical", stacklevel=3)
+
+    @property
+    def scattering_order(self) -> int:
+        """Highest Legendre order L given (0 = isotropic)."""
+        return len(self.sigma_s_l)
+
+    def sigma_sl(self, l: int) -> float:
+        """Σs_l: the l-th Legendre moment of scattering (0 beyond the given order)."""
+        if l == 0:
+            return self.sigma_s
+        return self.sigma_s_l[l - 1] if l <= len(self.sigma_s_l) else 0.0
+
+    def sigma_n(self, n: int) -> float:
+        """Σt − Σs_n, the removal cross section of the n-th angular moment."""
+        return self.sigma_t - self.sigma_sl(n)
+
+    def scattering_kernel(self, mu0) -> np.ndarray:
+        """Σs(μ0) = Σ_l (2l+1)/2 Σs_l P_l(μ0), normalised so ∫Σs(μ0)dμ0 = Σs0."""
+        c = [(2 * l + 1) / 2 * self.sigma_sl(l) for l in range(self.scattering_order + 1)]
+        return np.polynomial.legendre.legval(np.asarray(mu0), c)
 
     @property
     def sigma_a(self) -> float:
@@ -90,6 +128,6 @@ class SlabProblem:
     def from_toml(cls, path: str | Path) -> "SlabProblem":
         with open(path, "rb") as f:
             data = tomllib.load(f)
-        zones = [Zone(**z) for z in data.pop("zone")]
+        zones = [Zone(**{**z, "sigma_s_l": tuple(z.get("sigma_s_l", ()))}) for z in data.pop("zone")]
         mesh = data.pop("mesh", {})
         return cls(zones=zones, title=data.pop("title", Path(path).stem), extra=data, **mesh)
