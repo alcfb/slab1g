@@ -22,7 +22,15 @@ STYLE = {
 }
 
 
-def compare(results: list[Result]) -> str:
+NORM_TEXT = {
+    "average": "Fluxes normalised to slab-average scalar flux = 1.",
+    "fission": "Fluxes normalised to total fission rate = 1 (int Sf phi dx over the slab, per unit area).",
+}
+YLABEL = {"average": "scalar flux (slab average = 1)",
+          "fission": "scalar flux (total fission rate = 1)"}
+
+
+def compare(results: list[Result], norm: str = "average") -> str:
     ref = results[-1]
     lines = [f"Reference: {ref.method}", ""]
     hdr = f"{'method':<15s}{'k':>10s}{'dk [pcm]':>11s}{'max|dphi|/phi':>15s}{'rms dphi':>11s}"
@@ -34,7 +42,7 @@ def compare(results: list[Result]) -> str:
         row = f"{r.method:<15s}{r.k:>10.6f}{dk:>11.1f}{np.max(np.abs(rel)):>15.3e}{np.sqrt(np.mean(rel**2)):>11.3e}"
         row += "".join(f"{v:>11.5f}" for v in r.zone_avg)
         lines.append(row)
-    lines += ["", "Fluxes normalised to slab-average scalar flux = 1."]
+    lines += ["", NORM_TEXT[norm]]
     return "\n".join(lines)
 
 
@@ -46,46 +54,39 @@ def write_csv(results: list[Result], path: Path):
             w.writerow([f"{x:.8g}"] + [f"{r.phi[i]:.10g}" for r in results])
 
 
-def plot(problem: SlabProblem, results: list[Result], path: Path):
+def plot(problem: SlabProblem, results: list[Result], path: Path, norm: str = "average"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     ref = results[-1]
     show = [r for r in results if r.method in ("diffusion", "SP3")] + [ref]
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6.5), sharex=True,
-                                   gridspec_kw=dict(height_ratios=[3, 2], hspace=0.08))
-    for ax in (ax1, ax2):
-        for i, (a, b) in enumerate(zip(problem.interfaces[:-1], problem.interfaces[1:])):
-            if i % 2:
-                ax.axvspan(a, b, color="#000000", alpha=0.04, lw=0)
-        for xi in problem.interfaces[1:-1]:
-            ax.axvline(xi, color="#8a8a85", lw=0.8)
-        ax.grid(True, color="#e6e5e0", lw=0.6)
-        ax.set_axisbelow(True)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    for i, (a, b) in enumerate(zip(problem.interfaces[:-1], problem.interfaces[1:])):
+        if i % 2:
+            ax.axvspan(a, b, color="#000000", alpha=0.04, lw=0)
+    for xi in problem.interfaces[1:-1]:
+        ax.axvline(xi, color="#8a8a85", lw=0.8)
+    ax.grid(True, color="#e6e5e0", lw=0.6)
+    ax.set_axisbelow(True)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
 
     for r in show:
         st = STYLE["transport" if r is ref else r.method]
-        lbl = f"{r.method}  (k = {r.k:.5f})"
-        ax1.plot(r.x, r.phi, label=lbl, **st)
-        if r is not ref:
-            ax2.plot(r.x, 100 * (r.phi - ref.phi) / ref.phi, label=r.method, **st)
-    ax2.axhline(0, color="#1a1a19", lw=0.8)
+        ax.plot(r.x, r.phi, label=f"{r.method}  (k = {r.k:.5f})", **st)
 
-    ymax = ax1.get_ylim()[1]
+    ymax = ax.get_ylim()[1]
     for z, a, b in zip(problem.zones, problem.interfaces[:-1], problem.interfaces[1:]):
-        ax1.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
+        ax.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
 
-    ax1.set_ylabel("scalar flux (slab average = 1)")
-    ax1.set_title(f"{problem.title}: one-group flux, reflective boundaries", loc="left",
-                  fontsize=11, pad=28)
-    ax1.legend(frameon=False, fontsize=9, loc="lower left", bbox_to_anchor=(0, 1.0),
-               ncol=3, borderaxespad=0.2, handlelength=2.6)
-    ax2.set_ylabel(f"difference vs {ref.method.split()[0]} [%]")
-    ax2.set_xlabel("x [cm]")
-    ax2.set_xlim(0, problem.length)
+    ax.set_ylabel(YLABEL[norm])
+    ax.set_title(f"{problem.title}: one-group flux, reflective boundaries", loc="left",
+                 fontsize=11, pad=28)
+    ax.legend(frameon=False, fontsize=9, loc="lower left", bbox_to_anchor=(0, 1.0),
+              ncol=3, borderaxespad=0.2, handlelength=2.6)
+    ax.set_xlabel("x [cm]")
+    ax.set_xlim(0, problem.length)
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
@@ -97,6 +98,9 @@ def main(argv=None):
                    help="even S_N orders; the last one is the transport reference (default 16)")
     p.add_argument("--plot", type=Path, help="save flux comparison figure (png/pdf/svg)")
     p.add_argument("--csv", type=Path, help="save sampled fluxes as CSV")
+    p.add_argument("--norm", choices=["average", "fission"], default="average",
+                   help="flux normalisation: slab-average flux = 1 (default) or "
+                        "total fission rate int Sf phi dx = 1")
     a = p.parse_args(argv)
 
     problem = SlabProblem.from_toml(a.config)
@@ -104,11 +108,14 @@ def main(argv=None):
     for i, z in enumerate(problem.zones, 1):
         print(f"  zone {i} {z.name:<10s} t={z.thickness:g}  St={z.sigma_t:.4g}  Ss={z.sigma_s:.4g}  "
               f"Sc={z.sigma_c:.4g}  Sf={z.sigma_f:.4g}  nu={z.nu:g}  ({z.thickness * z.sigma_t:.2f} mfp)")
+        if z.sigma_s_l:
+            mom = ", ".join(f"Ss{l}={v:.4g}" for l, v in enumerate(z.sigma_s_l, 1))
+            print(f"         anisotropic P{z.scattering_order}: {mom}  (mean cosine {z.sigma_s_l[0] / z.sigma_s:.3f})")
     print()
-    results = solve_all(problem, sorted(a.sn))
-    print(compare(results))
+    results = solve_all(problem, sorted(a.sn), a.norm)
+    print(compare(results, a.norm))
     if a.plot:
-        plot(problem, results, a.plot)
+        plot(problem, results, a.plot, a.norm)
         print(f"\nfigure -> {a.plot}")
     if a.csv:
         write_csv(results, a.csv)

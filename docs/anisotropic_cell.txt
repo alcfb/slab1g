@@ -1,0 +1,21 @@
+Anisotropic fuel / moderator cell  |  L = 1.5 cm, 2 zones
+  zone 1 fuel       t=0.5  St=0.59  Ss=0.37  Sc=0.12  Sf=0.1  nu=2.5  (0.29 mfp)
+         anisotropic P1: Ss1=0.03  (mean cosine 0.081)
+  zone 2 moderator  t=1  St=1.21  Ss=1.2  Sc=0.01  Sf=0  nu=2.43  (1.21 mfp)
+         anisotropic P3: Ss1=0.61, Ss2=0.2, Ss3=0.05  (mean cosine 0.508)
+
+Reference: S32 (even-par)
+
+method                  k   dk [pcm]  max|dphi|/phi   rms dphi     zone 1     zone 2
+------------------------------------------------------------------------------------
+diffusion        1.042424     -115.1      1.094e-02  7.701e-03    1.00585    0.99708
+SP3              1.043201      -40.7      3.925e-03  2.693e-03    1.01191    0.99405
+S4 (even-par)    1.043201      -40.7      3.925e-03  2.693e-03    1.01191    0.99405
+S8 (even-par)    1.043549       -7.3      1.162e-03  5.523e-04    1.01464    0.99268
+S16 (even-par)   1.043615       -1.0      3.526e-04  1.248e-04    1.01516    0.99242
+S32 (even-par)   1.043625        0.0      0.000e+00  0.000e+00    1.01524    0.99238
+
+Fluxes normalised to slab-average scalar flux = 1.
+
+figure -> docs/img/anisotropic_cell.png
+csv    -> docs/anisotropic_cell.csv
