@@ -53,39 +53,32 @@ def plot(problem: SlabProblem, results: list[Result], path: Path):
 
     ref = results[-1]
     show = [r for r in results if r.method in ("diffusion", "SP3")] + [ref]
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6.5), sharex=True,
-                                   gridspec_kw=dict(height_ratios=[3, 2], hspace=0.08))
-    for ax in (ax1, ax2):
-        for i, (a, b) in enumerate(zip(problem.interfaces[:-1], problem.interfaces[1:])):
-            if i % 2:
-                ax.axvspan(a, b, color="#000000", alpha=0.04, lw=0)
-        for xi in problem.interfaces[1:-1]:
-            ax.axvline(xi, color="#8a8a85", lw=0.8)
-        ax.grid(True, color="#e6e5e0", lw=0.6)
-        ax.set_axisbelow(True)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    for i, (a, b) in enumerate(zip(problem.interfaces[:-1], problem.interfaces[1:])):
+        if i % 2:
+            ax.axvspan(a, b, color="#000000", alpha=0.04, lw=0)
+    for xi in problem.interfaces[1:-1]:
+        ax.axvline(xi, color="#8a8a85", lw=0.8)
+    ax.grid(True, color="#e6e5e0", lw=0.6)
+    ax.set_axisbelow(True)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
 
     for r in show:
         st = STYLE["transport" if r is ref else r.method]
-        lbl = f"{r.method}  (k = {r.k:.5f})"
-        ax1.plot(r.x, r.phi, label=lbl, **st)
-        if r is not ref:
-            ax2.plot(r.x, 100 * (r.phi - ref.phi) / ref.phi, label=r.method, **st)
-    ax2.axhline(0, color="#1a1a19", lw=0.8)
+        ax.plot(r.x, r.phi, label=f"{r.method}  (k = {r.k:.5f})", **st)
 
-    ymax = ax1.get_ylim()[1]
+    ymax = ax.get_ylim()[1]
     for z, a, b in zip(problem.zones, problem.interfaces[:-1], problem.interfaces[1:]):
-        ax1.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
+        ax.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
 
-    ax1.set_ylabel("scalar flux (slab average = 1)")
-    ax1.set_title(f"{problem.title}: one-group flux, reflective boundaries", loc="left",
-                  fontsize=11, pad=28)
-    ax1.legend(frameon=False, fontsize=9, loc="lower left", bbox_to_anchor=(0, 1.0),
-               ncol=3, borderaxespad=0.2, handlelength=2.6)
-    ax2.set_ylabel(f"difference vs {ref.method.split()[0]} [%]")
-    ax2.set_xlabel("x [cm]")
-    ax2.set_xlim(0, problem.length)
+    ax.set_ylabel("scalar flux (slab average = 1)")
+    ax.set_title(f"{problem.title}: one-group flux, reflective boundaries", loc="left",
+                 fontsize=11, pad=28)
+    ax.legend(frameon=False, fontsize=9, loc="lower left", bbox_to_anchor=(0, 1.0),
+              ncol=3, borderaxespad=0.2, handlelength=2.6)
+    ax.set_xlabel("x [cm]")
+    ax.set_xlim(0, problem.length)
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
