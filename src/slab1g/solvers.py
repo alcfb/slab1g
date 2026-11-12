@@ -78,6 +78,28 @@ class Result:
     ndofs: int
     info: dict = field(default_factory=dict)
 
+    def normalized(self, problem: SlabProblem, mode: str = "average") -> "Result":
+        """Copy of this result with the flux rescaled.
+
+        mode = "average": slab-average scalar flux = 1 (the solver default)
+        mode = "fission": total fission rate  int Sf phi dx = 1 over the slab
+                          (per unit transverse area)
+        """
+        widths = np.array([z.thickness for z in problem.zones])
+        if mode == "average":
+            c = problem.length / float(self.zone_avg @ widths)
+        elif mode == "fission":
+            sf = np.array([z.sigma_f for z in problem.zones])
+            c = 1.0 / float(self.zone_avg @ (sf * widths))
+        else:
+            raise ValueError(f"unknown normalisation {mode!r} (use 'average' or 'fission')")
+        return Result(self.method, self.k, self.x, c * self.phi, c * self.zone_avg,
+                      self.ndofs, {**self.info, "norm": mode})
+
+    def fission_rate(self, problem: SlabProblem) -> float:
+        """int Sf phi dx over the slab."""
+        return float(sum(z.sigma_f * z.thickness * a for z, a in zip(problem.zones, self.zone_avg)))
+
     def summary(self) -> str:
         za = ", ".join(f"{v:.5f}" for v in self.zone_avg)
         return f"{self.method:<14s} k = {self.k:.6f}   zone-avg flux = [{za}]   dofs = {self.ndofs}"
@@ -186,8 +208,8 @@ def sn_even_parity(problem: SlabProblem, N: int = 16, disc: Discretization | Non
     return _finish(f"S{N} (even-par)", d, k, phi, {"ndofs": len(mu) * n})
 
 
-def solve_all(problem: SlabProblem, sn_orders=(16,)) -> list[Result]:
+def solve_all(problem: SlabProblem, sn_orders=(16,), norm: str = "average") -> list[Result]:
     d = build(problem)
     out = [diffusion(problem, d), sp3(problem, d)]
     out += [sn_even_parity(problem, N, d) for N in sn_orders]
-    return out
+    return [r.normalized(problem, norm) for r in out]

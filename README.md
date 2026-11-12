@@ -26,7 +26,8 @@ slab1g examples/anisotropic_cell.toml --sn 4 8 16 32 --plot flux.png --csv flux.
 pytest
 ```
 
-The last `--sn` order is used as the transport reference.
+The last `--sn` order is used as the transport reference. Add `--norm fission` to
+normalise every flux to a total fission rate of 1 instead of a slab-average flux of 1.
 
 ## Example: fuel/moderator cell with anisotropic scattering
 
@@ -106,7 +107,9 @@ zones; SP3 removes most of them at twice the cost of diffusion.
 - A truncated expansion can make Σs(μ₀) negative at some angles (typical for strongly forward-peaked
   scattering at low order). This raises a warning; the solution is still well defined.
 - An N-point quadrature resolves moments only up to P_(N−1); higher ones are dropped with a warning (e.g. S2 on a P3 zone).
-- Fluxes are normalised to a slab-average scalar flux of 1.
+- Fluxes are normalised to a slab-average scalar flux of 1 by default. `--norm fission` (or
+  `solve_all(..., norm="fission")`) instead scales each model's flux so the total fission rate
+  ∫Σf φ dx over the slab is 1 (per unit transverse area); k and the flux shape are unaffected.
 
 Python API:
 

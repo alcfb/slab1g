@@ -163,3 +163,23 @@ def test_anisotropy_validation():
         Zone(thickness=1, sigma_s=0.5, sigma_c=0.1, sigma_f=0.1, sigma_s_l=(0.6,))
     with pytest.warns(UserWarning, match="negative"):
         Zone(thickness=1, sigma_s=1.2, sigma_c=0.1, sigma_f=0.1, sigma_s_l=(0.8, 0.4, 0.12))
+
+
+def test_fission_rate_normalisation(aniso):
+    """--norm fission: int Sf phi dx = 1 for every model; k and flux shape unchanged."""
+    avg = solve_all(aniso, (8,))
+    fis = solve_all(aniso, (8,), norm="fission")
+    sf = np.array([z.sigma_f for z in aniso.zones])
+    t = np.array([z.thickness for z in aniso.zones])
+    for ra, rf in zip(avg, fis):
+        assert rf.k == ra.k
+        assert rf.fission_rate(aniso) == pytest.approx(1.0, rel=1e-12)
+        assert rf.zone_avg @ (sf * t) == pytest.approx(1.0, rel=1e-12)
+        np.testing.assert_allclose(rf.phi / rf.phi[0], ra.phi / ra.phi[0], rtol=1e-12)
+    # sampled flux integrates consistently: samples are uniform sub-interval
+    # midpoints, so the midpoint rule over zone 1 (the only fissile zone) applies
+    r = fis[-1]
+    in1 = r.x < aniso.interfaces[1]
+    assert sf[0] * t[0] * r.phi[in1].mean() == pytest.approx(1.0, rel=1e-5)
+    with pytest.raises(ValueError):
+        avg[0].normalized(aniso, "power")
