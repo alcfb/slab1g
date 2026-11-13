@@ -90,7 +90,7 @@ def test_fission_normalisation(coupled):
         assert rate == pytest.approx(1.0, rel=1e-12)
 
 
-@pytest.mark.parametrize("name", ["pincell_2g", "reactor_2g"])
+@pytest.mark.parametrize("name", ["pincell_2g", "reactor_2g", "uox_mox_2g"])
 def test_two_group_examples_run(name):
     p = MGProblem.from_toml(EXAMPLES / f"{name}.toml")
     assert p.G == 2
