@@ -1,0 +1,35 @@
+# Two-group PWR-like core + water reflector, reflective boundaries.
+# Slab from the core centre (symmetry plane) outwards. Homogenised core data
+# typical of a PWR (D1 ≈ 1.35 cm, D2 ≈ 0.40 cm, Σ1->2 = 0.017, k_inf ≈ 1.19);
+# reflector = the same light-water data as the pin-cell moderator.
+title = "Core + reflector, two groups"
+groups = 2
+group_names = ["fast (> 0.625 eV)", "thermal (< 0.625 eV)"]
+chi = [1.0, 0.0]
+
+[mesh]
+elements_per_mfp = 3
+min_elements_per_zone = 64
+degree = 2
+
+[[zone]]
+name = "core"
+thickness = 150.0
+sigma_s   = [[0.520, 0.017],
+             [0.000, 1.000]]
+sigma_s_l = [[[0.300, 0.000],
+              [0.000, 0.247]]]
+sigma_c = [0.0074, 0.0306]
+sigma_f = [0.0026, 0.0494]
+nu      = [2.50, 2.43]
+
+[[zone]]
+name = "reflector"
+thickness = 30.0
+sigma_s   = [[0.600, 0.045],
+             [0.000, 1.800]]
+sigma_s_l = [[[0.330, 0.020],
+              [0.000, 0.450]]]
+sigma_c = [0.0005, 0.019]
+sigma_f = [0.0, 0.0]
+nu      = [2.43, 2.43]
