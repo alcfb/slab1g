@@ -225,6 +225,19 @@ slab1g examples/reactor_2g_cyl.toml --sn 8 16 32 --norm fission --plot flux.png
 
 ![two-group cylindrical pin cell](docs/img/pincell_2g_cyl_flux.png)
 
+### Vacuum outer boundary and the KRUSTY example
+
+`outer_boundary = "vacuum"` replaces the zero-current condition at x = L (slab, P1/SP3)
+or r = R (cylinder, all methods): Marshak conditions for P1 (n·J = φ/2) and SP3
+(φ₁ = Φ₀/2 − 3φ₂/8, (3/5)φ₃ = −3Φ₀/40 + 21φ₂/40, Brantley & Larsen), and no incoming
+neutrons for the cylindrical S_N. Negative capture (net (n,2n) gain, e.g. BeO) is accepted.
+
+`examples/krusty_2g_cyl.toml` is the KRUSTY 2-D radial model as a 1-D cylinder (central
+channel, U-Mo fuel annulus, gap, BeO reflector, vacuum outside), with the two-group OpenMC
+cross sections of the femcore `krusty2d` benchmark; the 8 heat pipes are smeared by area.
+
+![KRUSTY two-group](docs/img/krusty_2g_cyl_flux.png)
+
 ## Implementation
 
 ```

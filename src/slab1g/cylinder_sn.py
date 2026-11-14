@@ -17,9 +17,9 @@ with ξ = cosθ the cosine to the cylinder axis. Discretisation:
 * scattering: Legendre P_L in Ω·Ω' truncated at L = 1 (P1):
       q_g(μ) = 1/(4π) [ Σ_g' Σs0(g'->g) φ_g' + 3 μ Σ_g' Σs1(g'->g) J_g' + χ_g Σ_g' νΣf,g' φ_g' / k ]
   with J the radial current (higher moments are not supported here).
-* boundaries: r = 0 symmetry (ψ(μ) = ψ(-μ)); r = R white (isotropic return of the
-  outgoing partial current), i.e. zero net current like the reflective/natural
-  condition of the P1 and SP3 solvers.
+* boundaries: r = 0 symmetry (ψ(μ) = ψ(-μ)); r = R either white (isotropic return of
+  the outgoing partial current, zero net current like the reflective/natural condition
+  of the P1 and SP3 solvers) or vacuum (no incoming neutrons).
 
 Source iteration and power iteration run in one loop. The sweep is compiled with
 numba when it is installed (pip install numba), otherwise it runs in plain Python.
@@ -121,7 +121,7 @@ def quadrature(n_polar: int, n_azimuth: int):
 
 
 def solve(problem, n_polar: int = 8, n_azimuth: int = 16, cells_per_mfp: float = 4.0,
-          min_cells_per_zone: int = 40, tol: float = 1e-9, max_iter: int = 200000):
+          min_cells_per_zone: int = 40, tol: float = 1e-9, max_iter: int = 200000, outer: str = "white"):
     """k-eigenvalue in a cylinder (MGProblem with geometry='cylinder').
 
     Returns dict with k, r (cell centres), phi (G, nc), J (G, nc), cell volumes, iterations.
@@ -155,7 +155,7 @@ def solve(problem, n_polar: int = 8, n_azimuth: int = 16, cells_per_mfp: float =
         q0 = np.einsum("igh,hi->gi", S0, phi) + fis
         q1 = np.einsum("igh,hi->gi", S1, cur)
         new, newcur, jout, nneg = _sweep(re, st, q0, q1, xi_w, s_p, mu, wa, alpha, psi_in)
-        psi_in = jout / w_in
+        psi_in = jout / w_in if outer == "white" else np.zeros(G)
         prod_old = (nsf * phi * vol).sum()
         prod_new = (nsf * new * vol).sum()
         k_new = k * prod_new / prod_old

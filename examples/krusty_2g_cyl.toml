@@ -1,0 +1,62 @@
+# KRUSTY (Kilopower) 2-D radial model as a 1-D cylinder, two groups.
+# Cross sections: femcore benchmarks/krusty2d/mgxs/xs_2_groups_OPENMC.xml (branch interface-refactor),
+# OpenMC macroscopic, transport-corrected. Here: Σt as given, P1 self-scatter Σs1(g->g) = Σt - Σtr,
+# Σs0 = corrected matrix + Σs1 on the diagonal (reproduces D = 1/(3Σtr) of the library exactly).
+# Radii from benchmarks/krusty2d/mesh.py: central channel 1.9939, fuel 5.4995, gap 7.1406, reflector 19.2 cm.
+# The 8 heat pipes (r = 0.635 cm at r = 5.2 cm) are smeared by area into the fuel (9.58 %)
+# and the gap (3.42 %). The BeO reflector has negative fast absorption (net (n,2n) gain).
+title = "KRUSTY 2-D radial model, two groups"
+geometry = "cylinder"
+outer_boundary = "vacuum"
+groups = 2
+group_names = ["group 1 (fast)", "group 2 (slow)"]
+chi = [1, 0]
+
+[mesh]
+elements_per_mfp = 8
+min_elements_per_zone = 32
+degree = 2
+
+[[zone]]
+name = "channel"
+thickness = 1.9939
+sigma_s   = [[0.085244363, 1.9576275e-05],
+             [0, 0.23987033]]
+sigma_s_l = [[[0.021517753, 0],
+             [0, 0.10876517]]]
+sigma_c = [0.0010458539, 0.0042857858]
+sigma_f = [0, 0]
+nu      = [2.43, 2.43]
+
+[[zone]]
+name = "fuel"
+thickness = 3.5056
+sigma_s   = [[0.35262678, 3.1130711e-05],
+             [0.0022636502, 0.56031992]]
+sigma_s_l = [[[0.088911599, 0],
+             [0, 0.0053395588]]]
+sigma_c = [0.011473702, 0.24749462]
+sigma_f = [0.052112537, 1.3098291]
+nu      = [2.5390408, 2.4366998]
+
+[[zone]]
+name = "gap"
+thickness = 1.6411
+sigma_s   = [[0.16882563, 0.00042051845],
+             [0.00042630026, 0.35184162]]
+sigma_s_l = [[[0.027624039, 0],
+             [0, 0.044440082]]]
+sigma_c = [0.00095165418, 0.01282014]
+sigma_f = [0, 0]
+nu      = [2.43, 2.43]
+
+[[zone]]
+name = "BeO reflector"
+thickness = 12.0594
+sigma_s   = [[0.58919268, 0.0024926845],
+             [0.00030488769, 0.67679479]]
+sigma_s_l = [[[0.046581329, 0],
+             [0, 0.032570957]]]
+sigma_c = [-0.00047050587, 0.00012390056]
+sigma_f = [0, 0]
+nu      = [2.43, 2.43]

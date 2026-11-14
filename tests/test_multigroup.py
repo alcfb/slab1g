@@ -143,3 +143,37 @@ def test_cylinder_pincell_example():
     assert res[0].k > res[1].k > res[2].k          # P1 > SP3 > transport for this cell
     with pytest.raises(NotImplementedError):
         sn(p, 8)
+
+
+# --------------------------------------------------------------------------- #
+# vacuum outer boundary
+# --------------------------------------------------------------------------- #
+def test_marshak_sp3_coefficients_from_half_range_moments():
+    """The SP3 vacuum matrix equals the P3 Marshak conditions derived from scratch."""
+    from numpy.polynomial import legendre as L
+    from slab1g.multigroup import MARSHAK_SP3
+    x, w = L.leggauss(40)
+    xh, wh = 0.5 * (x - 1), 0.5 * w                       # (-1, 0): incoming at the right boundary
+    P = lambda l, t: L.Legendre.basis(l)(t)
+    M = np.array([[wh @ ((2 * l + 1) / 2 * P(l, xh) * P(k, xh)) for l in range(4)] for k in (1, 3)])
+    T = -np.linalg.solve(M[:, [1, 3]], M[:, [0, 2]]) @ np.array([[1, -2], [0, 1]])
+    np.testing.assert_allclose(MARSHAK_SP3, np.vstack([T[0], 0.6 * T[1]]), atol=1e-12)
+
+
+def test_vacuum_bare_cylinder_ordering():
+    """Bare cylinder of 5 mfp: SP3 is much closer to transport than P1 (Marshak conditions)."""
+    from slab1g.multigroup import sn_cylinder
+    zones = [MGZone(2.5, [0.05], [0.05], np.array([[[0.9]]]), [2.0], [1.0], n) for n in "ab"]
+    p = MGProblem(zones, 16, 64, 2, geometry="cylinder", outer_boundary="vacuum")
+    d = build(p)
+    k1, k3, ks = p1(p, d).k, sp3(p, d).k, sn_cylinder(p, 16).k
+    assert abs(k3 - ks) < 0.5 * abs(k1 - ks)
+    assert k1 < ks
+
+
+def test_krusty_example():
+    p = MGProblem.from_toml(EXAMPLES / "krusty_2g_cyl.toml")
+    assert p.outer_boundary == "vacuum" and p.geometry == "cylinder"
+    res = solve_all(p, (8,), norm="fission")
+    assert 1.2 < res[-1].k < 1.5
+    assert all(np.all(r.phi > 0) for r in res)

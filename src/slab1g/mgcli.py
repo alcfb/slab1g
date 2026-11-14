@@ -49,12 +49,14 @@ def compare(results: list[MGResult], problem: MGProblem, norm: str) -> str:
 
 
 def write_csv(results: list[MGResult], path):
-    G = results[0].phi.shape[0]
+    """Long format (methods may use different grids, e.g. the cylindrical S_N cells)."""
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["x"] + [f"{r.method} g{g + 1}" for r in results for g in range(G)])
-        for i, x in enumerate(results[0].x):
-            w.writerow([f"{x:.8g}"] + [f"{r.phi[g, i]:.10g}" for r in results for g in range(G)])
+        w.writerow(["method", "group", "x", "phi"])
+        for r in results:
+            for g in range(r.phi.shape[0]):
+                for x, v in zip(r.x, r.phi[g]):
+                    w.writerow([r.method, g + 1, f"{x:.8g}", f"{v:.10g}"])
 
 
 def plot(problem: MGProblem, results: list[MGResult], path, norm: str = "average"):
@@ -88,7 +90,10 @@ def plot(problem: MGProblem, results: list[MGResult], path, norm: str = "average
             ax.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
     axes[-1, 0].set_xlabel("r [cm]" if problem.geometry == "cylinder" else "x [cm]")
     axes[-1, 0].set_xlim(0, problem.length)
-    bc = ("white outer boundary" if problem.geometry == "cylinder" else "reflective boundaries")
+    if problem.outer_boundary == "vacuum":
+        bc = "vacuum outer boundary"
+    else:
+        bc = "white outer boundary" if problem.geometry == "cylinder" else "reflective boundaries"
     fig.suptitle(f"{problem.title}: flux per group, {bc}\n{YLABEL[norm]}",
                  x=0.125, y=1.04, ha="left", fontsize=11)
     fig.legend(loc="upper left", bbox_to_anchor=(0.12, 0.985), ncol=3, frameon=False, fontsize=9, handlelength=2.6)

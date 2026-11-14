@@ -85,8 +85,11 @@ class MGZone:
             raise ValueError(f"zone {self.name!r}: scattering matrices must be {G}x{G}")
         if self.thickness <= 0:
             raise ValueError(f"zone {self.name!r}: thickness must be > 0")
-        if np.any(S[0] < 0) or np.any(self.sigma_c < 0) or np.any(self.sigma_f < 0) or np.any(self.nu < 0):
+        if np.any(S[0] < 0) or np.any(self.sigma_f < 0) or np.any(self.nu < 0):
             raise ValueError(f"zone {self.name!r}: P0 cross sections must be >= 0")
+        if np.any(self.sigma_c < 0):     # e.g. Be (n,2n): net neutron gain counted as negative capture
+            warnings.warn(f"zone {self.name!r}: negative capture {self.sigma_c.tolist()} "
+                          "(net (n,2n) gain) accepted", stacklevel=3)
         for l in range(1, S.shape[0]):
             if np.any(np.abs(S[l]) > S[0] * (1 + 1e-12) + 1e-300):
                 raise ValueError(f"zone {self.name!r}: |Σs{l}(g->g')| exceeds Σs0(g->g') for some transfer")
@@ -151,10 +154,13 @@ class MGProblem:
     group_names: list = field(default_factory=list)
     extra: dict = field(default_factory=dict)
     geometry: str = "slab"            # "slab" or "cylinder" (x = radius, axis at x = 0)
+    outer_boundary: str = "reflective"  # at x = L: "reflective" (zero net current) or "vacuum"
 
     def __post_init__(self):
         if self.geometry not in ("slab", "cylinder"):
             raise ValueError(f"unknown geometry {self.geometry!r} (use 'slab' or 'cylinder')")
+        if self.outer_boundary not in ("reflective", "vacuum"):
+            raise ValueError(f"unknown outer_boundary {self.outer_boundary!r} (use 'reflective' or 'vacuum')")
         if not self.zones:
             raise ValueError("need at least one zone")
         G = {z.G for z in self.zones}
@@ -211,8 +217,9 @@ class MGProblem:
                 raise ValueError(f"unknown zone keys: {sorted(z)}")
         mesh = data.pop("mesh", {})
         geometry = data.pop("geometry", "slab")
+        outer = data.pop("outer_boundary", "reflective")
         return cls(zones=zones, title=data.pop("title", Path(path).stem), group_names=names, extra=data,
-                   geometry=geometry, **mesh)
+                   geometry=geometry, outer_boundary=outer, **mesh)
 
 
 # --------------------------------------------------------------------------- #
@@ -276,9 +283,27 @@ def _kron_zones(problem, d, coefK, coefM):
 # --------------------------------------------------------------------------- #
 # solvers
 # --------------------------------------------------------------------------- #
+def _outer_point(problem: MGProblem, d: Discretization) -> sp.csr_matrix:
+    """B[i, j] = A(L) φ_i(L) φ_j(L): boundary term at the outer surface (A = 1 slab, = R cylinder)."""
+    n = d.ndofs
+    vals = np.array([float(v) for v in d.topo.boundary["right"].sample("gauss", 1).eval(d.basis)[0]])
+    area = problem.length if problem.geometry == "cylinder" else 1.0
+    return sp.csr_matrix(area * np.outer(vals, vals))
+
+
+# Marshak vacuum conditions (zero incoming half-range moments of P_1 and P_3), written for the
+# equations used here (boundary fluxes φ1 = n·J0 and (3/5) φ3 of the two SP3 equations):
+#   P1 : n·J = φ/2
+#   SP3: φ1 = Φ0/2 - 3/8 φ2,   (3/5) φ3 = -3/40 Φ0 + 21/40 φ2      (Brantley & Larsen 2000)
+MARSHAK_P1 = 0.5
+MARSHAK_SP3 = np.array([[0.5, -3.0 / 8.0], [-3.0 / 40.0, 21.0 / 40.0]])
+
+
 def p1(problem: MGProblem, d: Discretization | None = None) -> MGResult:
     d = d or build(problem)
     A = _kron_zones(problem, d, lambda z: np.linalg.inv(z.R(1)) / 3.0, lambda z: z.R(0))
+    if problem.outer_boundary == "vacuum":
+        A = A + sp.kron(MARSHAK_P1 * sp.eye(problem.G), _outer_point(problem, d), format="csr")
     F = _kron_zones(problem, d, lambda z: None, lambda z: z.fission_matrix())
     k, u = solve_eigen(A, F)
     n, G = d.ndofs, problem.G
@@ -312,6 +337,8 @@ def sp3(problem: MGProblem, d: Discretization | None = None) -> MGResult:
         return Z
 
     A = _kron_zones(problem, d, K_, M_)
+    if problem.outer_boundary == "vacuum":
+        A = A + sp.kron(np.kron(MARSHAK_SP3, np.eye(G)), _outer_point(problem, d), format="csr")
     F = _kron_zones(problem, d, lambda z: None, F_)
     k, u = solve_eigen(A, F)
     u = u.reshape(2 * G, n)
@@ -345,6 +372,8 @@ def _sn_blocks(z: MGZone, mu, w):
 def sn(problem: MGProblem, N: int = 16, d: Discretization | None = None) -> MGResult:
     if problem.geometry != "slab":
         raise NotImplementedError("even-parity S_N is slab-only; use sn_cylinder for cylinders")
+    if problem.outer_boundary != "reflective":
+        raise NotImplementedError("even-parity S_N: only reflective boundaries are implemented")
     d = d or build(problem)
     mu, w = gauss_legendre_half(N)
     lost = [z.name or str(i) for i, z in enumerate(problem.zones, 1) if z.L > N - 1]
@@ -368,7 +397,8 @@ def sn_cylinder(problem: MGProblem, N: int = 16, cells_per_mfp: float = 8.0) -> 
     """Transport reference in a cylinder: diamond-difference S_N with angular redistribution
     (`cylinder_sn`), product quadrature with N/2 polar levels x N azimuthal directions."""
     from .cylinder_sn import solve as cyl_solve
-    r = cyl_solve(problem, n_polar=N // 2, n_azimuth=N // 2, cells_per_mfp=cells_per_mfp)
+    r = cyl_solve(problem, n_polar=N // 2, n_azimuth=N // 2, cells_per_mfp=cells_per_mfp,
+                  outer="vacuum" if problem.outer_boundary == "vacuum" else "white")
     t = problem.zone_measures()
     za = np.array([[(r["phi"][g] * r["vol"])[r["zid"] == i].sum() / t[i] for i in range(len(problem.zones))]
                    for g in range(problem.G)])
