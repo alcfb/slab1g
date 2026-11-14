@@ -177,3 +177,12 @@ def test_krusty_example():
     res = solve_all(p, (8,), norm="fission")
     assert 1.2 < res[-1].k < 1.5
     assert all(np.all(r.phi > 0) for r in res)
+
+
+def test_krusty_30_group_input():
+    """30-group KRUSTY input loads (upscatter, (n,2n), capped P1 in the channel) and diffusion-type solvers run."""
+    p = MGProblem.from_toml(EXAMPLES / "krusty_30g_cyl.toml")
+    assert p.G == 30 and p.geometry == "cylinder"
+    d = build(p)
+    k1, k3 = p1(p, d).k, sp3(p, d).k
+    assert 1.0 < k1 < k3 < 1.3
