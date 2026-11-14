@@ -234,8 +234,9 @@ neutrons for the cylindrical S_N. Negative capture (net (n,2n) gain, e.g. BeO) i
 
 `examples/krusty_2g_cyl.toml` is the KRUSTY 2-D radial model as a 1-D cylinder (central
 channel, U-Mo fuel annulus, gap, BeO reflector, vacuum outside), with the two-group OpenMC
-cross sections of the femcore `krusty2d` benchmark. The fuel annulus keeps its radii; all 8 heat pipes are
-moved into the gap (mixed by area with the vacuum-chamber material), which widens it to r = 7.3147 cm.
+cross sections of the femcore `krusty2d` benchmark. Every material area is conserved: the 8 heat pipes
+are moved out of the fuel into the gap (mixed by area with the vacuum-chamber material), so the fuel
+annulus ends at r = 5.2658 cm and the gap and reflector keep their original outer radii.
 
 ![KRUSTY two-group](docs/img/krusty_2g_cyl_flux.png)
 

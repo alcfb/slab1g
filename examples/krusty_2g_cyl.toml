@@ -2,10 +2,11 @@
 # Cross sections: femcore benchmarks/krusty2d/mgxs/xs_2_groups_OPENMC.xml (branch interface-refactor),
 # OpenMC macroscopic, transport-corrected. Here: Σt as given, P1 self-scatter Σs1(g->g) = Σt - Σtr,
 # Σs0 = corrected matrix + Σs1 on the diagonal (reproduces D = 1/(3Σtr) of the library exactly).
-# Radii from benchmarks/krusty2d/mesh.py: central channel 1.9939, fuel 5.4995 (unchanged, pure fuel).
-# Heat pipes: all 8 (r = 0.635 cm, 10.1341 cm2) are moved into the gap, mixed by area with the
-# vacuum-chamber material (62.9382 cm2): gap outer radius 7.1406 -> 7.3147 cm, heat-pipe
-# fraction 13.87 %. The BeO reflector keeps its area (outer radius 19.2 -> 19.2654 cm).
+# Radii from benchmarks/krusty2d/mesh.py (channel 1.9939, fuel 5.4995, gap 7.1406, reflector 19.2 cm),
+# with every material area conserved: the 8 heat pipes (10.1341 cm2) are moved out of the fuel
+# into the gap. Fuel keeps its real area 74.6218 cm2 -> outer radius 5.2658 cm; the gap holds
+# the vacuum-chamber material (62.9382 cm2) and all heat pipes mixed by area (13.87 % heat
+# pipe) and ends at the original 7.1406 cm; the BeO reflector is unchanged.
 # The BeO reflector has negative fast absorption (net (n,2n) gain).
 title = "KRUSTY 2-D radial model, two groups"
 geometry = "cylinder"
@@ -32,7 +33,7 @@ nu      = [2.43, 2.43]
 
 [[zone]]
 name = "fuel"
-thickness = 3.5056
+thickness = 3.27189
 sigma_s   = [[0.36603951, 5.8294978e-06],
              [0.0024211008, 0.57017508]]
 sigma_s_l = [[[0.094885043, 0],
@@ -43,7 +44,7 @@ nu      = [2.5390408, 2.4366998]
 
 [[zone]]
 name = "gap+HP"
-thickness = 1.81515
+thickness = 1.87481
 sigma_s   = [[0.17501032, 0.00040423598],
              [0.00046425784, 0.36432864]]
 sigma_s_l = [[[0.028153436, 0],
@@ -54,7 +55,7 @@ nu      = [2.43, 2.43]
 
 [[zone]]
 name = "BeO reflector"
-thickness = 11.9508
+thickness = 12.0594
 sigma_s   = [[0.58919268, 0.0024926845],
              [0.00030488769, 0.67679479]]
 sigma_s_l = [[[0.046581329, 0],
