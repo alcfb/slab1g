@@ -90,8 +90,13 @@ def build(problem: SlabProblem) -> Discretization:
     basis = topo.basis("std", degree=problem.degree)
     n = len(basis)
     dbasis = function.grad(basis, geom)[:, 0]
-    deg = 2 * problem.degree
-    J = function.J(geom)
+    # Cylindrical geometry (radial coordinate r = x, symmetry axis at x = 0): every
+    # volume integral carries the weight r (per radian and unit height), so
+    # K_z = int r phi_i' phi_j' dr etc. The natural boundary condition at r = 0 is the
+    # symmetry condition, at r = R zero net current, exactly as in the slab.
+    cyl = getattr(problem, "geometry", "slab") == "cylinder"
+    deg = 2 * problem.degree + (1 if cyl else 0)
+    J = function.J(geom) * (geom[0] if cyl else 1)
 
     K, M, L = [], [], []
     for s in zone_slices:

@@ -80,3 +80,72 @@ def dd_sn(problem: SlabProblem, N: int = 16, cells_per_mfp: float = 20.0,
     xc = 0.5 * (x[1:] + x[:-1])
     phi = phil[0] * problem.length / np.dot(phil[0], dx)
     return k, xc, phi, it + 1
+
+
+def dd_sn_mg(problem, N: int = 16, cells_per_mfp: float = 20.0, tol: float = 1e-9, max_iter: int = 100000):
+    """Multigroup diamond-difference S_N (independent of nutils), for MGProblem.
+
+    Source iteration with power iteration in one loop: every sweep uses the
+    scattering (all groups, Legendre moments) and fission sources of the previous
+    sweep. Returns (k, cell centres, scalar flux (G, ncells), iterations).
+    """
+    mu, w = gauss_legendre_half(N)
+    G = problem.G
+    L = min(max(z.L for z in problem.zones), N - 1)
+
+    dx, zid = [], []
+    for iz, z in enumerate(problem.zones):
+        nc = max(10, int(np.ceil(z.thickness * z.sigma_t * cells_per_mfp)))
+        dx += [z.thickness / nc] * nc
+        zid += [iz] * nc
+    dx, zid = np.asarray(dx), np.asarray(zid)
+    nc = len(dx)
+    st = np.array([problem.zones[i].sigma_t_g for i in zid]).T                       # (G, nc)
+    nsf = np.array([problem.zones[i].nu_sigma_f for i in zid]).T                     # (G, nc)
+    chi = np.array([problem.zones[i].chi for i in zid]).T                            # (G, nc)
+    # scat[l, g_to, g_from, cell] = (2l+1)/2 Σs,l(g_from -> g_to)
+    scat = np.array([[[[(2 * l + 1) / 2 * problem.zones[i].S(l)[gf, gt] for i in zid]
+                       for gf in range(G)] for gt in range(G)] for l in range(L + 1)])
+
+    P = np.array([np.polynomial.legendre.Legendre.basis(l)(mu) for l in range(L + 1)])   # (L+1, nmu)
+    sgn = (-1.0) ** np.arange(L + 1)
+
+    tau = st[:, None, :] * dx[None, None, :] / mu[None, :, None]                     # (G, nmu, nc)
+    a = (1 - tau / 2) / (1 + tau / 2)
+    b = (dx[None, None, :] / mu[None, :, None]) / (1 + tau / 2)
+
+    phil = np.zeros((L + 1, G, nc))
+    phil[0] = 1.0
+    k = 1.0
+    inl = np.zeros((G, len(mu)))
+    for it in range(max_iter):
+        fis = chi * (nsf * phil[0]).sum(axis=0)[None, :] / (2 * k)                    # (G, nc)
+        mom = np.einsum("ltfc,lfc->ltc", scat, phil)                                  # (L+1, G_to, nc)
+        qp = np.einsum("lm,ltc->tmc", P, mom) + fis[:, None, :]
+        qm = np.einsum("lm,ltc->tmc", P * sgn[:, None], mom) + fis[:, None, :]
+        avg_p = np.empty((G, len(mu), nc))
+        avg_m = np.empty((G, len(mu), nc))
+        psi = inl.copy()
+        for i in range(nc):
+            out = a[:, :, i] * psi + b[:, :, i] * qp[:, :, i]
+            avg_p[:, :, i] = 0.5 * (psi + out)
+            psi = out
+        for i in range(nc - 1, -1, -1):
+            out = a[:, :, i] * psi + b[:, :, i] * qm[:, :, i]
+            avg_m[:, :, i] = 0.5 * (psi + out)
+            psi = out
+        inl = psi
+        new = np.einsum("lm,gmc->lgc", P * w, avg_p) + np.einsum("lm,gmc->lgc", P * sgn[:, None] * w, avg_m)
+        prod_old = (nsf * phil[0] * dx).sum()
+        prod_new = (nsf * new[0] * dx).sum()
+        k_new = k * prod_new / prod_old
+        f_old = phil[0] / phil[0].sum()
+        f_new = new[0] / new[0].sum()
+        err = max(abs(k_new - k), np.abs(f_new - f_old).max() * nc * G)
+        phil, k = new, k_new
+        if err < tol:
+            break
+    else:
+        raise RuntimeError("multigroup DD S_N did not converge")
+    x = np.concatenate([[0.0], np.cumsum(dx)])
+    return k, 0.5 * (x[1:] + x[:-1]), phil[0], it + 1

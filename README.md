@@ -156,6 +156,75 @@ Multiplying the rows by W = diag(w) makes everything symmetric. With isotropic
 scattering T = Σt I and the angular stiffness is diagonal (μₘ²/Σt); with odd
 moments it is a dense N/2 × N/2 matrix per zone, still local in space.
 
+## Multigroup (e.g. two groups)
+
+`slab1g.multigroup` solves the G-group problem with the same three models on the
+same nutils mesh. All groups are solved together as one eigenproblem
+`A u = (1/k) F u` (no inner/outer iterations), so down-scatter, up-scatter and the
+fission spectrum χ are simply off-diagonal blocks. A TOML file with a `groups`
+key is routed to the multigroup solver automatically:
+
+```bash
+slab1g examples/pincell_2g.toml --sn 8 16 32 --norm fission --plot flux.png
+slab1g examples/reactor_2g.toml --sn 8 16 32 --norm fission --plot flux.png
+```
+
+Input per zone (G = 2, group boundary 0.625 eV in the examples):
+
+```toml
+groups = 2
+group_names = ["fast (> 0.625 eV)", "thermal (< 0.625 eV)"]
+chi = [1.0, 0.0]                 # default fission spectrum (can be set per zone)
+
+[[zone]]
+name = "fuel"
+thickness = 0.5
+sigma_s   = [[0.330, 0.002],     # Σs0(g -> g'), row = from-group
+             [0.000, 0.380]]
+sigma_s_l = [[[0.033, 0.000],    # [P1 matrix, P2 matrix, ...] (optional)
+              [0.000, 0.010]]]
+sigma_c = [0.010, 0.065]
+sigma_f = [0.003, 0.200]
+nu      = [2.60, 2.43]
+```
+
+Σt,g = Σc,g + Σf,g + Σ_g' Σs0(g → g'). With moment removal matrices
+R_l = diag(Σt) − S_lᵀ, the models are
+
+- **P1 (= diffusion):** −(D φ′)′ + R₀ φ = (1/k) χ νΣfᵀ φ, with D = R₁⁻¹/3
+  (diagonal D_g = 1/(3(Σt,g − Σs1,g→g)) when the P1 matrix is diagonal).
+- **SP3:** the one-group equations with σₙ replaced by the matrices Rₙ.
+- **Even-parity S_N:** the angular stiffness becomes μ T⁻¹ μ with
+  T = diag(Σt) ⊗ I − S_odd over the combined (group, direction) index.
+
+![two-group pin cell](docs/img/pincell_2g_flux.png)
+
+![two-group core and reflector](docs/img/reactor_2g_flux.png)
+
+Checks (`tests/test_multigroup.py`): G = 1 reproduces the one-group code to
+round-off; with down- and up-scatter and P3 transfer matrices S2 ≡ P1 and
+S4 ≡ SP3; infinite medium gives the analytic k∞; neutron balance; and agreement
+with an independent multigroup diamond-difference S_N code (`reference.dd_sn_mg`).
+
+### Cylindrical geometry
+
+Add `geometry = "cylinder"` to a multigroup input: x becomes the radius r, with the
+symmetry axis at r = 0 and zero net current at the outer radius.
+
+- **P1 and SP3:** the same nutils weak forms with the volume weight r
+  (`K_z = ∫ r φᵢ′φⱼ′ dr`, …). In a cylinder SP3 is an approximation to P3, no longer identical to it.
+- **Transport:** even-parity S_N is slab-only, so the reference is a multigroup
+  diamond-difference S_N with angular redistribution (`slab1g.cylinder_sn`): product
+  quadrature (N/2 Gauss–Legendre polar levels × N azimuthal directions), P1 scattering,
+  white outer boundary. It keeps a flat infinite-medium flux exactly flat. Compiled with numba.
+
+```bash
+slab1g examples/pincell_2g_cyl.toml --sn 8 16 32 --norm fission --plot flux.png
+slab1g examples/reactor_2g_cyl.toml --sn 8 16 32 --norm fission --plot flux.png
+```
+
+![two-group cylindrical pin cell](docs/img/pincell_2g_cyl_flux.png)
+
 ## Implementation
 
 ```
@@ -163,8 +232,10 @@ src/slab1g/
   problem.py    Zone / SlabProblem, Legendre scattering moments, TOML loader
   fem.py        nutils mesh (zone-aligned) and per-zone stiffness/mass matrices
   solvers.py    diffusion, SP3, even-parity S_N, eigen solver
-  reference.py  independent diamond-difference S_N (numpy only) for verification
-  cli.py        comparison table, figure, CSV
+  reference.py  independent diamond-difference S_N, one-group and multigroup (numpy only)
+  multigroup.py G-group P1, SP3 and even-parity S_N (one coupled eigenproblem); slab or cylinder
+  cylinder_sn.py multigroup DD S_N with angular redistribution for cylinders (transport reference)
+  cli.py        comparison table, figure, CSV (mgcli.py for multigroup inputs)
 ```
 
 `fem.py` assembles, once, `K_z = ∫_z φᵢ′φⱼ′` and `M_z = ∫_z φᵢφⱼ` on each zone's
