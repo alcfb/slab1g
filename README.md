@@ -206,6 +206,25 @@ round-off; with down- and up-scatter and P3 transfer matrices S2 ≡ P1 and
 S4 ≡ SP3; infinite medium gives the analytic k∞; neutron balance; and agreement
 with an independent multigroup diamond-difference S_N code (`reference.dd_sn_mg`).
 
+### Cylindrical geometry
+
+Add `geometry = "cylinder"` to a multigroup input: x becomes the radius r, with the
+symmetry axis at r = 0 and zero net current at the outer radius.
+
+- **P1 and SP3:** the same nutils weak forms with the volume weight r
+  (`K_z = ∫ r φᵢ′φⱼ′ dr`, …). In a cylinder SP3 is an approximation to P3, no longer identical to it.
+- **Transport:** even-parity S_N is slab-only, so the reference is a multigroup
+  diamond-difference S_N with angular redistribution (`slab1g.cylinder_sn`): product
+  quadrature (N/2 Gauss–Legendre polar levels × N azimuthal directions), P1 scattering,
+  white outer boundary. It keeps a flat infinite-medium flux exactly flat. Compiled with numba.
+
+```bash
+slab1g examples/pincell_2g_cyl.toml --sn 8 16 32 --norm fission --plot flux.png
+slab1g examples/reactor_2g_cyl.toml --sn 8 16 32 --norm fission --plot flux.png
+```
+
+![two-group cylindrical pin cell](docs/img/pincell_2g_cyl_flux.png)
+
 ## Implementation
 
 ```
@@ -214,7 +233,8 @@ src/slab1g/
   fem.py        nutils mesh (zone-aligned) and per-zone stiffness/mass matrices
   solvers.py    diffusion, SP3, even-parity S_N, eigen solver
   reference.py  independent diamond-difference S_N, one-group and multigroup (numpy only)
-  multigroup.py G-group P1, SP3 and even-parity S_N (one coupled eigenproblem)
+  multigroup.py G-group P1, SP3 and even-parity S_N (one coupled eigenproblem); slab or cylinder
+  cylinder_sn.py multigroup DD S_N with angular redistribution for cylinders (transport reference)
   cli.py        comparison table, figure, CSV (mgcli.py for multigroup inputs)
 ```
 

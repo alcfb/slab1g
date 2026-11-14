@@ -150,8 +150,11 @@ class MGProblem:
     title: str = "slab"
     group_names: list = field(default_factory=list)
     extra: dict = field(default_factory=dict)
+    geometry: str = "slab"            # "slab" or "cylinder" (x = radius, axis at x = 0)
 
     def __post_init__(self):
+        if self.geometry not in ("slab", "cylinder"):
+            raise ValueError(f"unknown geometry {self.geometry!r} (use 'slab' or 'cylinder')")
         if not self.zones:
             raise ValueError("need at least one zone")
         G = {z.G for z in self.zones}
@@ -178,6 +181,14 @@ class MGProblem:
             out.append(x)
         return out
 
+    def zone_measures(self) -> np.ndarray:
+        """Zone 'volumes' consistent with the FE integrals: thickness (slab) or
+        int r dr = (r2^2 - r1^2)/2 (cylinder, per radian and unit height)."""
+        x = np.array(self.interfaces)
+        if self.geometry == "cylinder":
+            return 0.5 * (x[1:] ** 2 - x[:-1] ** 2)
+        return np.diff(x)
+
     @classmethod
     def from_toml(cls, path) -> "MGProblem":
         with open(path, "rb") as f:
@@ -199,7 +210,9 @@ class MGProblem:
             if z:
                 raise ValueError(f"unknown zone keys: {sorted(z)}")
         mesh = data.pop("mesh", {})
-        return cls(zones=zones, title=data.pop("title", Path(path).stem), group_names=names, extra=data, **mesh)
+        geometry = data.pop("geometry", "slab")
+        return cls(zones=zones, title=data.pop("title", Path(path).stem), group_names=names, extra=data,
+                   geometry=geometry, **mesh)
 
 
 # --------------------------------------------------------------------------- #
@@ -217,9 +230,9 @@ class MGResult:
 
     def normalized(self, problem: MGProblem, mode: str = "average") -> "MGResult":
         """average: slab- and group-summed average flux = 1; fission: total fission rate = 1."""
-        t = np.array([z.thickness for z in problem.zones])
+        t = problem.zone_measures()
         if mode == "average":
-            c = problem.length / float((self.zone_avg * t).sum())
+            c = float(t.sum()) / float((self.zone_avg * t).sum())
         elif mode == "fission":
             sf = np.array([z.sigma_f for z in problem.zones]).T          # (G, Z)
             c = 1.0 / float((self.zone_avg * sf * t).sum())
@@ -237,7 +250,7 @@ def _finish(method, problem, d: Discretization, k, phis, ndofs) -> MGResult:
     phis = np.asarray(phis)                         # (G, n)
     if phis.sum() < 0:
         phis = -phis
-    t = np.array([z.thickness for z in problem.zones])
+    t = problem.zone_measures()
     za = np.array([d.zone_integrals(p) for p in phis]) / t
     ph = []
     for p in phis:
@@ -330,6 +343,8 @@ def _sn_blocks(z: MGZone, mu, w):
 
 
 def sn(problem: MGProblem, N: int = 16, d: Discretization | None = None) -> MGResult:
+    if problem.geometry != "slab":
+        raise NotImplementedError("even-parity S_N is slab-only; use sn_cylinder for cylinders")
     d = d or build(problem)
     mu, w = gauss_legendre_half(N)
     lost = [z.name or str(i) for i, z in enumerate(problem.zones, 1) if z.L > N - 1]
@@ -349,9 +364,26 @@ def sn(problem: MGProblem, N: int = 16, d: Discretization | None = None) -> MGRe
     return _finish(f"S{N} (even-par)", problem, d, k, phis, G * Nh * n)
 
 
+def sn_cylinder(problem: MGProblem, N: int = 16, cells_per_mfp: float = 8.0) -> MGResult:
+    """Transport reference in a cylinder: diamond-difference S_N with angular redistribution
+    (`cylinder_sn`), product quadrature with N/2 polar levels x N azimuthal directions."""
+    from .cylinder_sn import solve as cyl_solve
+    r = cyl_solve(problem, n_polar=N // 2, n_azimuth=N // 2, cells_per_mfp=cells_per_mfp)
+    t = problem.zone_measures()
+    za = np.array([[(r["phi"][g] * r["vol"])[r["zid"] == i].sum() / t[i] for i in range(len(problem.zones))]
+                   for g in range(problem.G)])
+    res = MGResult(f"S{N} (cyl DD)", r["k"], r["r"], r["phi"], za, r["phi"].size,
+                   {"iterations": r["iterations"], "quadrature": r["quadrature"]})
+    return res.normalized(problem, "average")
+
+
 def solve_all(problem: MGProblem, sn_orders=(16,), norm: str = "average") -> list[MGResult]:
     d = build(problem)
-    out = [p1(problem, d), sp3(problem, d)] + [sn(problem, N, d) for N in sn_orders]
+    out = [p1(problem, d), sp3(problem, d)]
+    if problem.geometry == "cylinder":
+        out += [sn_cylinder(problem, N) for N in sn_orders]
+    else:
+        out += [sn(problem, N, d) for N in sn_orders]
     return [r.normalized(problem, norm) for r in out]
 
 

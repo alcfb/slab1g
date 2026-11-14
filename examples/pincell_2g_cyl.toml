@@ -1,0 +1,35 @@
+# Two-group pin cell, cylindrical: fuel radius 0.5 cm, cell radius 1.5 cm (Wigner-Seitz cell).
+# Representative two-group data, group boundary 0.625 eV, no up-scatter, chi = [1, 0].
+# Matrices: sigma_s[g][g'] = Σs0(g -> g'), row = from-group; sigma_s_l = [P1 matrix, ...].
+title = "Pin cell, two groups, cylinder"
+geometry = "cylinder"           # x = radius; axis at r = 0, white (zero net current) outer boundary
+groups = 2
+group_names = ["fast (> 0.625 eV)", "thermal (< 0.625 eV)"]
+chi = [1.0, 0.0]
+
+[mesh]
+elements_per_mfp = 8
+min_elements_per_zone = 16
+degree = 2
+
+[[zone]]                     # UO2, ~3.5 % U-235
+name = "fuel"
+thickness = 0.5
+sigma_s   = [[0.330, 0.002],
+             [0.000, 0.380]]
+sigma_s_l = [[[0.033, 0.000],
+              [0.000, 0.010]]]
+sigma_c = [0.010, 0.065]     # incl. U-238 resonance capture in group 1
+sigma_f = [0.003, 0.200]
+nu      = [2.60, 2.43]
+
+[[zone]]                     # light water
+name = "moderator"
+thickness = 1.0
+sigma_s   = [[0.600, 0.045],
+             [0.000, 1.800]]
+sigma_s_l = [[[0.330, 0.020],
+              [0.000, 0.450]]]
+sigma_c = [0.0005, 0.019]
+sigma_f = [0.0, 0.0]
+nu      = [2.43, 2.43]

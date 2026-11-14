@@ -103,3 +103,43 @@ def test_input_validation():
         MGZone(1.0, [0.1, 0.1], [0, 0], np.array([[[0.5, 0.1], [0, 1.0]], [[0.6, 0], [0, 0.1]]]), [2.4, 2.4], [1, 0])
     with pytest.raises(ValueError):
         MGZone(1.0, [0.1, 0.1, 0.1], [0, 0], np.array([[0.5, 0.1], [0, 1.0]]), [2.4, 2.4], [1, 0])
+
+
+# --------------------------------------------------------------------------- #
+# cylindrical geometry
+# --------------------------------------------------------------------------- #
+def test_cylinder_infinite_medium_all_methods(coupled):
+    """Identical zones in a cylinder: k = k_inf and a flat flux for P1, SP3 and DD S_N
+    (a strict check of the r weighting and of the angular redistribution terms)."""
+    from slab1g.multigroup import sn_cylinder
+    fuel = MGZone(**{**coupled.zones[0].__dict__, "scatter": coupled.zones[0].scatter[:2]})
+    p = MGProblem([fuel, MGZone(**{**fuel.__dict__, "name": "f2"})], 8, 16, 2, geometry="cylinder")
+    kinf = k_infinity(fuel)
+    d = build(p)
+    for r in (p1(p, d), sp3(p, d), sn_cylinder(p, 8)):
+        assert r.k == pytest.approx(kinf, rel=1e-7)
+        for g in range(2):
+            assert np.ptp(r.phi[g]) < 1e-6 * r.phi[g].max()
+
+
+def test_cylinder_thick_diffusion_agrees_with_transport():
+    """Optically thick cylinder: SP3 (r-weighted FE) and DD S_N agree to a few pcm, P1 to < 0.1 %."""
+    from slab1g.multigroup import sn_cylinder
+    S0 = np.array([[0.50, 0.02], [0.0, 1.0]])
+    S1 = np.array([[0.10, 0.0], [0.0, 0.10]])
+    core = MGZone(30.0, [0.006, 0.03], [0.003, 0.05], np.stack([S0, S1]), [2.5, 2.43], [1, 0], "core")
+    refl = MGZone(15.0, [0.0005, 0.02], [0, 0], np.stack([1.2 * S0, S1]), [2.43, 2.43], [1, 0], "refl")
+    p = MGProblem([core, refl], 4, 32, 2, geometry="cylinder")
+    k_sn = sn_cylinder(p, 16).k
+    assert abs(sp3(p).k - k_sn) / k_sn < 1e-4
+    assert abs(p1(p).k - k_sn) / k_sn < 1e-3
+
+
+def test_cylinder_pincell_example():
+    p = MGProblem.from_toml(EXAMPLES / "pincell_2g_cyl.toml")
+    assert p.geometry == "cylinder"
+    res = solve_all(p, (8,), norm="fission")
+    assert all(np.all(r.phi > 0) for r in res)
+    assert res[0].k > res[1].k > res[2].k          # P1 > SP3 > transport for this cell
+    with pytest.raises(NotImplementedError):
+        sn(p, 8)

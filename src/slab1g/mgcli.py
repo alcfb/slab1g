@@ -14,7 +14,8 @@ YLABEL = {"average": "scalar flux (slab- and group-summed average = 1)",
 
 def describe(problem: MGProblem) -> str:
     G = problem.G
-    lines = [f"{problem.title}  |  L = {problem.length:g} cm, {len(problem.zones)} zones, {G} groups"]
+    geo = "R" if problem.geometry == "cylinder" else "L"
+    lines = [f"{problem.title}  |  {problem.geometry}, {geo} = {problem.length:g} cm, {len(problem.zones)} zones, {G} groups"]
     for i, z in enumerate(problem.zones, 1):
         D = np.linalg.inv(z.R(1)) / 3.0
         lines.append(f"  zone {i} {z.name:<10s} t={z.thickness:g}  chi={np.round(z.chi, 4).tolist()}")
@@ -36,10 +37,14 @@ def compare(results: list[MGResult], problem: MGProblem, norm: str) -> str:
     lines += [hdr, "-" * len(hdr)]
     for r in results:
         row = f"{r.method:<16s}{r.k:>10.6f}{1e5 * (r.k - ref.k) / ref.k:>10.1f}"
-        row += "".join(f"{np.max(np.abs(r.phi[g] / ref.phi[g] - 1)):>18.3e}" for g in range(G))
+        row += "".join(f"{np.max(np.abs(np.interp(ref.x, r.x, r.phi[g]) / ref.phi[g] - 1)):>18.3e}" for g in range(G))
         row += "".join(f"{r.zone_avg[g, i]:>12.5g}" for g in range(G) for i in range(Z))
         lines.append(row)
-    lines += ["", NORM_TEXT[norm].replace("scalar flux", "scalar flux summed over groups")]
+    txt = NORM_TEXT[norm].replace("scalar flux", "scalar flux summed over groups")
+    if problem.geometry == "cylinder":
+        txt = (txt.replace("int Sf phi dx over the slab, per unit area", "int Sf phi r dr = 1, i.e. per radian and unit height")
+                  .replace("slab-average", "volume-average"))
+    lines += ["", txt]
     return "\n".join(lines)
 
 
@@ -81,9 +86,10 @@ def plot(problem: MGProblem, results: list[MGResult], path, norm: str = "average
         ymax = ax.get_ylim()[1]
         for z, a, b in zip(problem.zones, problem.interfaces[:-1], problem.interfaces[1:]):
             ax.text(0.5 * (a + b), ymax, z.name, ha="center", va="top", color="#5f5e5a", fontsize=9)
-    axes[-1, 0].set_xlabel("x [cm]")
+    axes[-1, 0].set_xlabel("r [cm]" if problem.geometry == "cylinder" else "x [cm]")
     axes[-1, 0].set_xlim(0, problem.length)
-    fig.suptitle(f"{problem.title}: flux per group, reflective boundaries\n{YLABEL[norm]}",
+    bc = ("white outer boundary" if problem.geometry == "cylinder" else "reflective boundaries")
+    fig.suptitle(f"{problem.title}: flux per group, {bc}\n{YLABEL[norm]}",
                  x=0.125, y=1.04, ha="left", fontsize=11)
     fig.legend(loc="upper left", bbox_to_anchor=(0.12, 0.985), ncol=3, frameon=False, fontsize=9, handlelength=2.6)
     fig.savefig(path, dpi=150, bbox_inches="tight")
