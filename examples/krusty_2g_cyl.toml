@@ -2,9 +2,11 @@
 # Cross sections: femcore benchmarks/krusty2d/mgxs/xs_2_groups_OPENMC.xml (branch interface-refactor),
 # OpenMC macroscopic, transport-corrected. Here: Σt as given, P1 self-scatter Σs1(g->g) = Σt - Σtr,
 # Σs0 = corrected matrix + Σs1 on the diagonal (reproduces D = 1/(3Σtr) of the library exactly).
-# Radii from benchmarks/krusty2d/mesh.py: central channel 1.9939, fuel 5.4995, gap 7.1406, reflector 19.2 cm.
-# The 8 heat pipes (r = 0.635 cm at r = 5.2 cm) are smeared by area into the fuel (9.58 %)
-# and the gap (3.42 %). The BeO reflector has negative fast absorption (net (n,2n) gain).
+# Radii from benchmarks/krusty2d/mesh.py: central channel 1.9939, fuel 5.4995 (unchanged, pure fuel).
+# Heat pipes: all 8 (r = 0.635 cm, 10.1341 cm2) are moved into the gap, mixed by area with the
+# vacuum-chamber material (62.9382 cm2): gap outer radius 7.1406 -> 7.3147 cm, heat-pipe
+# fraction 13.87 %. The BeO reflector keeps its area (outer radius 19.2 -> 19.2654 cm).
+# The BeO reflector has negative fast absorption (net (n,2n) gain).
 title = "KRUSTY 2-D radial model, two groups"
 geometry = "cylinder"
 outer_boundary = "vacuum"
@@ -31,28 +33,28 @@ nu      = [2.43, 2.43]
 [[zone]]
 name = "fuel"
 thickness = 3.5056
-sigma_s   = [[0.35262678, 3.1130711e-05],
-             [0.0022636502, 0.56031992]]
-sigma_s_l = [[[0.088911599, 0],
-             [0, 0.0053395588]]]
-sigma_c = [0.011473702, 0.24749462]
-sigma_f = [0.052112537, 1.3098291]
+sigma_s   = [[0.36603951, 5.8294978e-06],
+             [0.0024211008, 0.57017508]]
+sigma_s_l = [[[0.094885043, 0],
+             [0, 0.00081960808]]]
+sigma_c = [0.012390592, 0.27099917]
+sigma_f = [0.057632529, 1.4485721]
 nu      = [2.5390408, 2.4366998]
 
 [[zone]]
-name = "gap"
-thickness = 1.6411
-sigma_s   = [[0.16882563, 0.00042051845],
-             [0.00042630026, 0.35184162]]
-sigma_s_l = [[[0.027624039, 0],
-             [0, 0.044440082]]]
-sigma_c = [0.00095165418, 0.01282014]
+name = "gap+HP"
+thickness = 1.81515
+sigma_s   = [[0.17501032, 0.00040423598],
+             [0.00046425784, 0.36432864]]
+sigma_s_l = [[[0.028153436, 0],
+             [0, 0.04482635]]]
+sigma_c = [0.001153496, 0.014202046]
 sigma_f = [0, 0]
 nu      = [2.43, 2.43]
 
 [[zone]]
 name = "BeO reflector"
-thickness = 12.0594
+thickness = 11.9508
 sigma_s   = [[0.58919268, 0.0024926845],
              [0.00030488769, 0.67679479]]
 sigma_s_l = [[[0.046581329, 0],
