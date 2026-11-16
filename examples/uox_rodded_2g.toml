@@ -1,0 +1,38 @@
+# Half an unrodded UOX assembly next to half a rodded UOX assembly (10.75 cm each),
+# reflective on both sides = infinite checkerboard of unrodded/rodded assemblies.
+# Representative two-group homogenised assembly data (fresh fuel, 0.625 eV, chi = [1, 0]):
+#   UOX unrodded: D = 1.44 / 0.39 cm, Σa = 0.0092 / 0.093, Σ1->2 = 0.0177, νΣf = 0.0062 / 0.137 (k_inf ≈ 1.20)
+#   UOX rodded  : D = 1.43 / 0.38 cm, Σa = 0.0125 / 0.1273, Σ1->2 = 0.0170, νΣf unchanged   (k_inf ≈ 0.83)
+# (rodded = fully inserted B4C/AIC rod cluster: extra thermal and epithermal absorption,
+#  slightly less slowing-down because the rods displace water in the guide tubes)
+title = "UOX unrodded / rodded assemblies, two groups"
+groups = 2
+group_names = ["fast (> 0.625 eV)", "thermal (< 0.625 eV)"]
+chi = [1.0, 0.0]
+
+[mesh]
+elements_per_mfp = 8
+min_elements_per_zone = 32
+degree = 2
+
+[[zone]]
+name = "UOX unrodded"
+thickness = 10.75
+sigma_s   = [[0.5200, 0.0177],
+             [0.0000, 1.0000]]
+sigma_s_l = [[[0.3154, 0.0000],
+              [0.0000, 0.2383]]]
+sigma_c = [0.00672, 0.0366]
+sigma_f = [0.00248, 0.0564]
+nu      = [2.50, 2.43]
+
+[[zone]]
+name = "UOX rodded"
+thickness = 10.75
+sigma_s   = [[0.5200, 0.0170],
+             [0.0000, 1.0000]]
+sigma_s_l = [[[0.3164, 0.0000],
+              [0.0000, 0.2501]]]
+sigma_c = [0.01002, 0.0709]
+sigma_f = [0.00248, 0.0564]
+nu      = [2.50, 2.43]

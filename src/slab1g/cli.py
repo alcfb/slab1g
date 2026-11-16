@@ -1,11 +1,13 @@
 """Command line: solve a slab with diffusion, SP3 and S_N, then compare.
 
     slab1g examples/fuel_moderator.toml --sn 4 8 16 --plot flux.png --csv flux.csv
+    slab1g examples/pincell_2g.toml --sn 8 16 32 --plot flux.png     # multigroup input (has `groups`)
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import tomllib
 from pathlib import Path
 
 import numpy as np
@@ -102,6 +104,11 @@ def main(argv=None):
                    help="flux normalisation: slab-average flux = 1 (default) or "
                         "total fission rate int Sf phi dx = 1")
     a = p.parse_args(argv)
+
+    with open(a.config, "rb") as f:
+        if "groups" in tomllib.load(f):
+            from .mgcli import run as run_mg
+            return run_mg(a)
 
     problem = SlabProblem.from_toml(a.config)
     print(f"{problem.title}  |  L = {problem.length:g} cm, {len(problem.zones)} zones")
